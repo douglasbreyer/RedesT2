@@ -5,7 +5,7 @@
 int matrizCustosVizinhos[MAX][3], prox_roteador;
 informacoesRoteador_t infoRoteador;
 roteadorVizinho_t infoVizinhos[N_ROTEADORES];
-filaPacotes_t entrada, saida; //Filas de entrada e saida de pacotes
+//filaPacotes_t entrada, saida; //Filas de entrada e saida de pacotes
 int slen = sizeof(socketRoteador);
 
 
@@ -16,13 +16,7 @@ int main(int argc, char *argv[]) {
     //roteador instanciado
   	id_inicio = atoi(argv[1]);
 	
-	//memset(tabRoteamento, -1, sizeof(tabRoteamento));
-	for(int k = 0; k < N_ROTEADORES; k++){
-		for(int l = 0; l < N_ROTEADORES; l++){
-			tabRoteamento[k][l] = INF;
-		}
-	}
-
+	// memset(tabRoteamento, -1, sizeof(tabRoteamento));
 
   	getRoteadorConfig(&infoRoteador, id_inicio);  // pego os ids, portas e ips
 
@@ -32,7 +26,7 @@ int main(int argc, char *argv[]) {
 	}
 
 
-	ordem = inicializa(matrizCustosVizinhos, id_inicio, listaVizinhos, &infoRoteador, infoVizinhos, &entrada, &saida, &logMutex, &mensagemMutex, &novidadeMutex); 			// adiciona os vizinho diretos e os custos a matriz de roteamento
+	ordem = inicializa(matrizCustosVizinhos, id_inicio, listaVizinhos, &infoRoteador, infoVizinhos, &logMutex, &mensagemMutex, &novidadeMutex); 			// adiciona os vizinho diretos e os custos a matriz de roteamento
 	
 	//=============== DEBUG ===========
 	//printaInforoteador(&infoRoteador);
@@ -58,9 +52,11 @@ int main(int argc, char *argv[]) {
 		die("Não foi possível conectar o socket com a porta\n");
 
   	// Threads para mandar e receber mensagem
-	pthread_t tids[2];
+	printf("esta fera meeuu === %d\n", id_inicio);
+	pthread_t tids[3];
 	pthread_create(&tids[0], NULL, (void *)sender, id_inicio);
-	pthread_create(&tids[1], NULL, (void *)receiver, (id_inicio));
+	pthread_create(&tids[1], NULL, (void *)receiver, id_inicio);
+	pthread_create(&tids[2], NULL, (void *)distVector, id_inicio);
 	pthread_join(tids[0], NULL);
 	pthread_join(tids[1], NULL);
 
@@ -90,13 +86,21 @@ void getRoteadorConfig(informacoesRoteador_t *infoRoteador, int id_inicio){
 
 
 
-
+void *distVector(int roteador){
+	
+	printf("Entrou aqui KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK %d\n\n", roteador);
+	while(1){
+		//uma flag desencadeia o envio dos vetores distancias
+		//receber vetores distancia e tbm recalcular a tabRoteamento
+	}
+}
 
 
 
 
 //verifica se ocorreu falha ao enviar mensagem e retorna pro roteador de origem mensagem de falha
-void teste(msg mensagem, msg ack){	
+void teste(msg mensagem, msg ack){
+	printf("ENTROU NA TESTE\n");	
 	int s;
 	struct sockaddr_in si_other;
 	unsigned int slen1 = sizeof(si_other);
@@ -224,6 +228,8 @@ void send_n(msg mensagem, int prox_roteador, int roteador_atual) {
 
 // //ESCREVE MENSAGEM E MANDA PARA O DESTINO
 void *sender(int roteador) {
+	//printf("ENTROU NA SENDER\n");
+	//printf("%d - id inicio\n", roteador);
 
   while(1) {
     //Estrutura para ler mensagem e roteador de destino
@@ -243,11 +249,10 @@ void *sender(int roteador) {
     m.mensagem[strlen(m.mensagem) - 1] = '\0';
 
     //procura o próximo caminho
+	printf("ATE AQUI FOI DE BOAS\nAgora tem q pegar o enlace\n");
     prox_roteador = getEnlace(roteador, m.destino);
-	if(prox_roteador > 1 && prox_roteador < N_ROTEADORES){
-		printf("\nRoteador %d encaminhando mensagem %s para %d \n",roteador,m.mensagem,prox_roteador);
-		send_n(m, prox_roteador, roteador);
-	}else printf("\nRoteador n conhecido\nSua mensagem não foi emviada, tente mais tarde\n");
+	printf("\nRoteador %d encaminhando mensagem %s para %d \n",roteador,m.mensagem,prox_roteador);
+	send_n(m, prox_roteador, roteador);
 
   }
   pthread_exit(NULL);
@@ -257,31 +262,34 @@ void *sender(int roteador) {
 
 //fica aguardando receber mensagem (confirmação, erro, ou pacote)
 void *receiver(int roteador){
-
+	printf("ENTROU RECEIVER\n");
 	struct sockaddr_in si_me, si_other;
     int s, i, slen = sizeof(si_other) , recv_len;
     int myport = rota[roteador].port + 10;
 
+	printf("COntinua na receiver\n");
     //create a UDP socket
     if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
     {
         die("socket");
     }
-
+	//printf("COntinua na receiver 01\n");
     // zera a estrutura
     memset((char *) &si_me, 0, sizeof(si_me));
 
     si_me.sin_family = AF_INET;
     si_me.sin_port = htons(myport);
     si_me.sin_addr.s_addr = htonl(INADDR_ANY);
+	//printf("COntinua na receiver 02\n");
     //liga o socket e a porta
     if( bind(s , (struct sockaddr*)&si_me, sizeof(si_me) ) == -1)
     {
         die("bind");
     }
     //fica esperando chegar alguma mensagem
+	//printf("COntinua na receiver 03 antes de entrar no while\n");
     while(1){
-	
+		//printf("COntinua na receiver 04\n");
  		//estrutura para receber a mensagem
  		msg mens;
 
@@ -324,6 +332,7 @@ void *receiver(int roteador){
         		printf("\nRoteador %d encaminhando mensagem %s para %d \n",roteador,mens.mensagem,prox_roteador);
         		send_n(mens,prox_roteador,roteador);
         }
+		printf("COntinua na receiver 07\n");
 
      }
 

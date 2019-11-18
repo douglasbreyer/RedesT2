@@ -24,7 +24,7 @@
 
 #define ATTEMPTS_S 3
 #define N_ROTEADORES 7
-#define INF 9999
+#define INF 999
 #define TAM_IP 10
 #define TAM_FILA 1123456
 #define TAM_MENSAGEM 100
@@ -77,15 +77,6 @@ typedef struct{
 
 
 typedef struct{
-    int inicio;
-    int fim;
-    pacote_t filaPacotes[TAM_FILA];
-    pthread_mutex_t mutex;
-}filaPacotes_t;
-
-
-
-typedef struct{
     int id;
     int porta;
     int sock;
@@ -116,4 +107,5 @@ void getRoteadorConfig();
 void send_n(msg mensagem, int prox_roteador, int roteador_atual );
 void *sender(int roteador);
 void *receiver(int roteador);
+void *distVector(int roteador);
 #endif

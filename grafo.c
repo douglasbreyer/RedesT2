@@ -11,8 +11,8 @@ int inicializa( int mCusto[][MAX],
 				int listaVizinhos[], 
 				informacoesRoteador_t *infoRoteador, 
 				roteadorVizinho_t infoVizinhos[N_ROTEADORES],
-				filaPacotes_t *entrada,
-                filaPacotes_t *saida,
+				// filaPacotes_t *entrada,
+                // filaPacotes_t *saida,
                 pthread_mutex_t *logMutex,
                 pthread_mutex_t *mensagemMutex,
                 pthread_mutex_t *novidadeMutex){
@@ -20,6 +20,11 @@ int inicializa( int mCusto[][MAX],
 	int a, b, c, count = 0;
 
 	int i = 0;
+	for(int d = 0; d < N_ROTEADORES; d++){
+		for(int e = 0; e < N_ROTEADORES; e++){
+			tabRoteamento[d][e] = INF;
+		}
+	}
 	while (i < N_ROTEADORES){        //inicializa os vizinhos
 		infoVizinhos[i].novidade = 0;
 		infoVizinhos[i].id = infoVizinhos[i].porta = infoVizinhos[i].saltoOriginal = -1;
@@ -52,7 +57,7 @@ int inicializa( int mCusto[][MAX],
 			strcpy(infoVizinhos[count].ip, rota[b].ip);   //ip
 			
 			
-			tabRoteamento[b][b] = c;  //inicia valores na tabela de roteamento - apenas vizinhos diretos. O restante é calculado durante a execução
+			tabRoteamento[id_inicio][b] = c;  //inicia valores na tabela de roteamento - apenas vizinhos diretos. O restante é calculado durante a execução
 
 			count ++;
 			//printf("\n======\n%s - %d\n=======\n", rota[b].ip, rota[b].id);
@@ -70,9 +75,6 @@ int inicializa( int mCusto[][MAX],
 	// }
 	infoRoteador->qtdVizinhos = count;  //recebe num vizinhos
 
-	entrada->inicio = saida->inicio = entrada->fim = saida->fim = 0;
-	pthread_mutex_init(&(entrada->mutex), NULL);
-	pthread_mutex_init(&(saida->mutex), NULL);
 	pthread_mutex_init(logMutex, NULL);
 	pthread_mutex_init(mensagemMutex, NULL);
 	pthread_mutex_init(novidadeMutex, NULL);
@@ -91,18 +93,17 @@ int getEnlace(int idIni, int idFin){
 	int i = 0, j = 0;
 	int tem = 0; //tem caminho para o destino
 	int rotMandar = 0; //para qual rot mandar
-	int custoMandar = INF - 1;
-
+	int custoE = INF;
 	printaTabelaRoteamento();
-	if(tabRoteamento[idFin][idFin] != INF){   //verifica se conhece o roteador
-	
+	if(tabRoteamento[idIni][idFin] != INF){   //verifica se conhece o roteador
+		//printf("\nTESTAZAO\n");
 		while(i < N_ROTEADORES){
 			if(tabRoteamento[i][idFin] != INF){    //corre a coluna do IDFIM verificando se tem algum menor custo
-				if(tabRoteamento[i][idFin] < custoMandar){  //pega o menor custo
-					custoMandar = tabRoteamento[i][idFin];
+				if(tabRoteamento[i][idFin] < custoE){  //pega o menor custo
+					custoE = tabRoteamento[i][idFin];
 					rotMandar = i;
 					tem = 1;
-					printf("%d - linha\n%d - coluna", i, idFin);
+					printf("\n\n%d\n\n", custoE);
 				}
 			}
 			i++;
@@ -119,10 +120,15 @@ int getEnlace(int idIni, int idFin){
 	//for(int i = 0; i < N_ROTEADORES; i++){
 	//	tabRoteamento[idIni][i] = 1;
 	//}
-	if(rotMandar != INF){
+	printf("ROTMANDAR = %d\n\n", rotMandar);
+	if(rotMandar != INF && rotMandar != 0 && rotMandar != idIni){
 		return rotMandar; //retorna qual vizinho deve mandar a mensagem
+		printf("\nMANDOU OQ DEVIA MANDAR\n");
 	}
-	else return idFin;
+	else{
+		printf("PEGOU NO ELSE\n");
+		return idFin;
+	}
 	
 }
 
