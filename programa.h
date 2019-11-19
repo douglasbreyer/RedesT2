@@ -68,15 +68,6 @@ typedef struct{
 }distSalto_t;
 
 typedef struct{
-    int controle;
-    int destino;
-    int origem;
-    char mensagem[TAM_MENSAGEM];
-    distSalto_t vetorDistancia[N_ROTEADORES];
-}pacote_t;
-
-
-typedef struct{
     int id;
     int porta;
     int sock;
@@ -94,11 +85,22 @@ typedef struct{
     char ip[TAM_IP];
 } roteadorVizinho_t;
 
+typedef struct{
+    int idInicio;
+    int idDestino;
+    int custo;
+    int vetorCustos[N_ROTEADORES];
+} vetDistancia_t;
+
 
 struct roteador rota[100];
+
 int tabRoteamento[N_ROTEADORES][N_ROTEADORES];
 int listaVizinhos[N_ROTEADORES];
+roteadorVizinho_t infoVizinhos[N_ROTEADORES];
 int ordem;
+int flagEnvia;
+
 
 void die(char *s);
 
@@ -108,4 +110,6 @@ void send_n(msg mensagem, int prox_roteador, int roteador_atual );
 void *sender(int roteador);
 void *receiver(int roteador);
 void *distVector(int roteador);
+void printaTabelaRoteamento();
+int getEnlace(int idIni, int idFin);
 #endif

@@ -95,8 +95,9 @@ int getEnlace(int idIni, int idFin){
 	int rotMandar = 0; //para qual rot mandar
 	int custoE = INF;
 	printaTabelaRoteamento();
+	//flagEnvia = 1;
 	if(tabRoteamento[idIni][idFin] != INF){   //verifica se conhece o roteador
-		//printf("\nTESTAZAO\n");
+
 		while(i < N_ROTEADORES){
 			if(tabRoteamento[i][idFin] != INF){    //corre a coluna do IDFIM verificando se tem algum menor custo
 				if(tabRoteamento[i][idFin] < custoE){  //pega o menor custo
@@ -131,6 +132,9 @@ int getEnlace(int idIni, int idFin){
 	}
 	
 }
+
+
+
 
 
 

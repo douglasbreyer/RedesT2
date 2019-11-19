@@ -4,7 +4,7 @@
 //inicia a matriz pro djisktra
 int matrizCustosVizinhos[MAX][3], prox_roteador;
 informacoesRoteador_t infoRoteador;
-roteadorVizinho_t infoVizinhos[N_ROTEADORES];
+
 //filaPacotes_t entrada, saida; //Filas de entrada e saida de pacotes
 int slen = sizeof(socketRoteador);
 
@@ -13,6 +13,7 @@ int main(int argc, char *argv[]) {
 
   	int id_inicio;
 	ordem = -1;
+	flagEnvia = 1;
     //roteador instanciado
   	id_inicio = atoi(argv[1]);
 	
@@ -28,6 +29,19 @@ int main(int argc, char *argv[]) {
 
 	ordem = inicializa(matrizCustosVizinhos, id_inicio, listaVizinhos, &infoRoteador, infoVizinhos, &logMutex, &mensagemMutex, &novidadeMutex); 			// adiciona os vizinho diretos e os custos a matriz de roteamento
 	
+	//enlaces_t vetorDistancia[N_ROTEADORES];
+	// int i = 0;
+	// while(i < N_ROTEADORES){
+	// 	vetorDistancia[i].idInicio = id_inicio;
+	// 	vetorDistancia[i].idFinal = infoVizinhos[i].id;
+	// 	vetorDistancia[i].custo = infoVizinhos[i].custo;
+	// 	printf("\nidINI = %d\nidFIM = %d\ncusto = %d\n", vetorDistancia[i].idInicio, vetorDistancia[i].idFinal, vetorDistancia[i].custo);
+	// 	i++;
+	// }
+
+
+	
+
 	//=============== DEBUG ===========
 	//printaInforoteador(&infoRoteador);
 	//printaRota();
@@ -89,9 +103,64 @@ void getRoteadorConfig(informacoesRoteador_t *infoRoteador, int id_inicio){
 void *distVector(int roteador){
 	
 	printf("Entrou aqui KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK %d\n\n", roteador);
+
+
 	while(1){
-		//uma flag desencadeia o envio dos vetores distancias
-		//receber vetores distancia e tbm recalcular a tabRoteamento
+		if(flagEnvia == 1){
+
+			printf("\n\nFLAGENVIIIIIIIIIAAAAAAAAAAAAA\n\n");
+
+			int sockt, s;
+			struct sockaddr_in si_dest, si_other;
+			unsigned int slen = sizeof(si_dest);
+
+			//Cria o UDP socket
+			if((sockt = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1){
+				die("socket");
+			}
+
+			unsigned int slen1 = sizeof(si_other);
+			memset((char *) &si_other, 0, sizeof(si_other));
+			si_other.sin_family = AF_INET;
+			si_other.sin_port = htons(rota[roteador].port);
+			
+			vetDistancia_t vetorDistancia;
+			int i = 0;
+			int j;
+			while (i < ordem){
+				vetorDistancia.idInicio = roteador;
+				vetorDistancia.idDestino = infoVizinhos[i].id;
+				vetorDistancia.custo = infoVizinhos[i].custo;
+				j = 0;
+				while (j < N_ROTEADORES){
+					vetorDistancia.vetorCustos[j] = tabRoteamento[roteador][j];
+					j++;
+				}
+				printf("\nValor id = %d\nDestino = %d", vetorDistancia.idInicio, vetorDistancia.idDestino);
+				printf("Conseuiu criar socket\n");
+				
+				memset((char *) &si_dest, 0, sizeof(si_dest));
+				si_dest.sin_family = AF_INET;
+				si_dest.sin_port = htons(rota[infoVizinhos[i].id].port + 10);
+				printf("%d - Porta que vai sair a mensagem\n", rota[infoVizinhos[i].id].port);
+				
+				if (inet_aton(rota[infoVizinhos[i].id].ip , &si_dest.sin_addr) == 0){ //address to number
+					fprintf(stderr, "inet_aton() send_n() failed\n"),
+					exit(1);
+				}
+
+				if (sendto(sockt, &vetorDistancia, sizeof(vetorDistancia), 0 , (struct sockaddr *) &si_dest, slen)==-1){
+	      			die("\n sendto() send_n()\n");
+					  printf("Não consegiu enviar vetor distancia\n");
+	   			}
+				printf("\nConseuiu enviar\n");
+
+				i++;
+			}
+			close(sockt);
+			flagEnvia = 0;
+
+		}
 	}
 }
 
@@ -297,14 +366,33 @@ void *receiver(int roteador){
         mens.type = NONE;
         memset(mens.mensagem,0,sizeof(mens.mensagem));
         fflush(stdout);
+
+		vetDistancia_t vetorDistancia;
+		int i = 0;
+		int j;
+		vetorDistancia.idInicio = roteador;
+		vetorDistancia.idDestino = infoVizinhos[i].id;
+		vetorDistancia.custo = infoVizinhos[i].custo;
+		// j = 0;
+		// while (j < N_ROTEADORES){
+		// 	vetorDistancia.vetorCustos[j] = tabRoteamento[roteador][j];
+		// 	j++;
+		// }
+
+
+
+
+
 		//printf("COntinua na receiver 05\n");
         if ((recv_len = recvfrom(s, &mens, sizeof(mens), 0, (struct sockaddr *) &si_other, &slen)) == -1)
         {
 
             die("\nrecvfrom() receiver()\n");
         }
+		printf("\n\n\nRECEBI AS POHA AQUI\n\n");
 		//printf("COntinua na receiver 06\n");
         //verifica se o roteador estanciado é o destino final da mensagem
+		
         if(mens.destino == roteador){
         	printf("\n ## Pacote recebido de %d | mensagem > %s < \n",mens.origem,mens.mensagem);
           //envia confirmação de recebimento
