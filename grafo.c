@@ -1,33 +1,24 @@
 #include "grafo.h"
 #include "programa.h"
 
-//int mDISK[2][MAX]; //0->distancia 1-> vertice anterior
-//int fila[MAX]; //fila de vertices não visitados
-//int ordem=-1;
-
 //montar o grafo de roteamento
 int inicializa( int mCusto[][MAX],
 				int id_inicio, 
 				int listaVizinhos[], 
 				informacoesRoteador_t *infoRoteador, 
-				roteadorVizinho_t infoVizinhos[N_ROTEADORES],
-				// filaPacotes_t *entrada,
-                // filaPacotes_t *saida,
-                pthread_mutex_t *logMutex,
-                pthread_mutex_t *mensagemMutex,
-                pthread_mutex_t *novidadeMutex){
+				roteadorVizinho_t infoVizinhos[N_ROTEADORES]){
 
 	int a, b, c, count = 0;
 
 	int i = 0;
-	for(int d = 0; d < N_ROTEADORES; d++){
-		for(int e = 0; e < N_ROTEADORES; e++){
+	for(int d = 0; d < N_ROTEADORES; d++)
+		for(int e = 0; e < N_ROTEADORES; e++)
 			tabRoteamento[d][e] = INF;
-		}
-	}
+	
+	tabRoteamento[id_inicio][id_inicio] = 0;
+
 	while (i < N_ROTEADORES){        //inicializa os vizinhos
-		infoVizinhos[i].novidade = 0;
-		infoVizinhos[i].id = infoVizinhos[i].porta = infoVizinhos[i].saltoOriginal = -1;
+		infoVizinhos[i].id = infoVizinhos[i].porta = infoVizinhos[i].timer = -1;
 		infoVizinhos[i].custo = INF;
 		i++;
 
@@ -36,8 +27,6 @@ int inicializa( int mCusto[][MAX],
 	FILE *arquivo = fopen("enlaces.config","r");
 
 	while(fscanf(arquivo,"%d %d %d",&a, &b, &c)!= EOF){
-		// printf("Lendo o arquivo\n");
-		// printf("%d\n", );
 		int aux = 0;
 		if(b == id_inicio){
 			aux = a;
@@ -56,87 +45,71 @@ int inicializa( int mCusto[][MAX],
 			infoVizinhos[count].porta = rota[b].port; //porta
 			strcpy(infoVizinhos[count].ip, rota[b].ip);   //ip
 			
-			
+
 			tabRoteamento[id_inicio][b] = c;  //inicia valores na tabela de roteamento - apenas vizinhos diretos. O restante é calculado durante a execução
-
 			count ++;
-			//printf("\n======\n%s - %d\n=======\n", rota[b].ip, rota[b].id);
-			
-			
 		}
-		// if(a>ordem)ordem=a;
-		// if(b>ordem)ordem=b;
 	}
-	// i = 0;
-	// while (i < count) {
-	// 	printf("%d\n", listaVizinhos[i]);
-	// 	printf("%d %d %d\n",mCusto[i][0], mCusto[i][1], mCusto[i][2]);
-	// 	i++;
-	// }
-	infoRoteador->qtdVizinhos = count;  //recebe num vizinhos
 
-	pthread_mutex_init(logMutex, NULL);
-	pthread_mutex_init(mensagemMutex, NULL);
-	pthread_mutex_init(novidadeMutex, NULL);
-	
-	
+	infoRoteador->qtdVizinhos = count;  //recebe num vizinhos
 	return count;
 }
 
 
-int iniciaComunicacao(int idIni, int idFin){
-	printf("Entrou no comunica\n\n\n\n");
-}
-
 // verifica por qual vizinho deve ser a saida da mensagem
 int getEnlace(int idIni, int idFin){
-	int i = 0, j = 0;
-	int tem = 0; //tem caminho para o destino
-	int rotMandar = 0; //para qual rot mandar
-	int custoE = INF;
-	printaTabelaRoteamento();
-	//flagEnvia = 1;
-	if(tabRoteamento[idIni][idFin] != INF){   //verifica se conhece o roteador
+	
+	int rotMandar = -1;
+	int custo_max = INF;
 
-		while(i < N_ROTEADORES){
-			if(tabRoteamento[i][idFin] != INF){    //corre a coluna do IDFIM verificando se tem algum menor custo
-				if(tabRoteamento[i][idFin] < custoE){  //pega o menor custo
-					custoE = tabRoteamento[i][idFin];
-					rotMandar = i;
-					tem = 1;
-					printf("\n\n%d\n\n", custoE);
-				}
+	if(tabRoteamento[idIni][idFin] == INF)  //conheço um caminho pro destino
+		return rotMandar;
+
+	for(int i = 0; i < ordem; i++){
+		if(tabRoteamento[infoVizinhos[i].id][idFin] != INF){    //se eu conheco
+			int custoTotal = tabRoteamento[infoVizinhos[i].id][idFin] + infoVizinhos[i].custo;
+			if(custo_max > custoTotal){
+				custo_max = custoTotal;
+				rotMandar = infoVizinhos[i].id;
 			}
-			i++;
 		}
+	}
 
-		if(tem == 1){      //tem q pegar o menor
-			
-		}
-		else{          //aqui tem q mandar vetor distancia pois n fez comunicaççao com os vizinhos
-			printf("NÃO CONHECE O MENOR CAMINHO, PODE SER VIZINHO\n\n\n"); 
-			iniciaComunicacao(idIni, idFin);   //TEM Q VERIFICAR SE É VIZINHO PRA COMECAR A COMUNICAR
-		}
-	}
-	//for(int i = 0; i < N_ROTEADORES; i++){
-	//	tabRoteamento[idIni][i] = 1;
-	//}
-	printf("ROTMANDAR = %d\n\n", rotMandar);
-	if(rotMandar != INF && rotMandar != 0 && rotMandar != idIni){
-		return rotMandar; //retorna qual vizinho deve mandar a mensagem
-		printf("\nMANDOU OQ DEVIA MANDAR\n");
-	}
-	else{
-		printf("PEGOU NO ELSE\n");
-		return idFin;
-	}
+	// printf("RETORNANDO ROTEADOR = %d", rotMandar);
+	return rotMandar;
 	
 }
 
 
+void atualizaTabRoteamento(msg vetorDistancia){
+	int alteracao = 0;
 
+	if(tabRoteamento[vetorDistancia.origem][vetorDistancia.origem] == INF)  //pode ter recebido vetores novos mas n atualizou o proprio, flag pra enviar
+		alteracao = 1;
 
+	for(int i = 0; i < N_ROTEADORES; i++){
+		//recebe vetor distancia do vizinho
+		//ex: rot = 1. Recebo vet distancia do rot 2 e copio os valores pra tabela do 1
+		if(tabRoteamento[vetorDistancia.origem][i] != vetorDistancia.vetorCustos[i]){  //se os valores sao diferentes adiciono, senao ignoro
+			tabRoteamento[vetorDistancia.origem][i] = vetorDistancia.vetorCustos[i];  //adiciona o vetor distacia enviado
+		}
+	}
 
+	///atualiza as informações do proprio vetor distancia
+	for(int i = 0; i < N_ROTEADORES; i++){
+		int custo_total = vetorDistancia.vetorCustos[i] + vetorDistancia.custo; //CT = item do vet custos + custo pro pacote chegar aqui
+
+		//percorre coluna - se for INF recebe custo total
+		//					se oq tiver na tab for maior csto total = custo total
+		if(tabRoteamento[vetorDistancia.destino][i] == INF || tabRoteamento[vetorDistancia.destino][i] > custo_total){ 
+			tabRoteamento[vetorDistancia.destino][i] = custo_total;
+			alteracao = 1;
+		}
+	}
+		
+	if(alteracao == 1)
+		flagEnvia = 1;
+}
 
 
 
@@ -171,7 +144,6 @@ void printaVizinhos(roteadorVizinho_t infoVizinhos[N_ROTEADORES], int ordem){
 		printf("PORTA = %d\n", infoVizinhos[i].porta);
 		printf("IP = %s\n", infoVizinhos[i].ip);
 		printf("Custo = %d\n", infoVizinhos[i].custo);
-		printf("Novidade = %d\n\n\n", infoVizinhos[i].novidade);
 		i++;
 	}
 
@@ -188,10 +160,9 @@ void printaMatrizCustos(int mCusto[][MAX], int ordem){
 	
 }
 void printaTabelaRoteamento(){
-	int j = 0;
-	for (int i = 0; i < N_ROTEADORES; i++){
+	for (int i = 1; i < N_ROTEADORES; i++){
 		printf("\n");
-		for (j = 0; j < N_ROTEADORES; j++){
+		for (int j = 1; j < N_ROTEADORES; j++){
 			printf("%d |", tabRoteamento[i][j]);
 		}
 	}

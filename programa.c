@@ -1,11 +1,8 @@
 #include "programa.h"
 #include <string.h>
 
-//inicia a matriz pro djisktra
 int matrizCustosVizinhos[MAX][3], prox_roteador;
 informacoesRoteador_t infoRoteador;
-
-//filaPacotes_t entrada, saida; //Filas de entrada e saida de pacotes
 int slen = sizeof(socketRoteador);
 
 
@@ -16,8 +13,8 @@ int main(int argc, char *argv[]) {
 	flagEnvia = 1;
     //roteador instanciado
   	id_inicio = atoi(argv[1]);
-	
-	// memset(tabRoteamento, -1, sizeof(tabRoteamento));
+	ROTATUAL = id_inicio;
+
 
   	getRoteadorConfig(&infoRoteador, id_inicio);  // pego os ids, portas e ips
 
@@ -27,18 +24,7 @@ int main(int argc, char *argv[]) {
 	}
 
 
-	ordem = inicializa(matrizCustosVizinhos, id_inicio, listaVizinhos, &infoRoteador, infoVizinhos, &logMutex, &mensagemMutex, &novidadeMutex); 			// adiciona os vizinho diretos e os custos a matriz de roteamento
-	
-	//enlaces_t vetorDistancia[N_ROTEADORES];
-	// int i = 0;
-	// while(i < N_ROTEADORES){
-	// 	vetorDistancia[i].idInicio = id_inicio;
-	// 	vetorDistancia[i].idFinal = infoVizinhos[i].id;
-	// 	vetorDistancia[i].custo = infoVizinhos[i].custo;
-	// 	printf("\nidINI = %d\nidFIM = %d\ncusto = %d\n", vetorDistancia[i].idInicio, vetorDistancia[i].idFinal, vetorDistancia[i].custo);
-	// 	i++;
-	// }
-
+	ordem = inicializa(matrizCustosVizinhos, id_inicio, listaVizinhos, &infoRoteador, infoVizinhos); 			// adiciona os vizinho diretos e os custos a matriz de roteamento
 
 	
 
@@ -48,7 +34,7 @@ int main(int argc, char *argv[]) {
 	//printaVizinhos(infoVizinhos, ordem);
 	//printamatrizCustosVizinhos(matrizCustosVizinhos, ordem);
 	//printaTabelaRoteamento(tabRoteamento);
-	// printaRotas();
+	//printaRotas();
 
 
 
@@ -66,11 +52,11 @@ int main(int argc, char *argv[]) {
 		die("Não foi possível conectar o socket com a porta\n");
 
   	// Threads para mandar e receber mensagem
-	printf("esta fera meeuu === %d\n", id_inicio);
 	pthread_t tids[3];
 	pthread_create(&tids[0], NULL, (void *)sender, id_inicio);
 	pthread_create(&tids[1], NULL, (void *)receiver, id_inicio);
 	pthread_create(&tids[2], NULL, (void *)distVector, id_inicio);
+	pthread_create(&tids[2], NULL, (void *)timer, id_inicio);
 	pthread_join(tids[0], NULL);
 	pthread_join(tids[1], NULL);
 
@@ -98,17 +84,35 @@ void getRoteadorConfig(informacoesRoteador_t *infoRoteador, int id_inicio){
 	}
 }
 
+void *timer(int id_inicio){
+	clock_t aux, tDecorrido;
+
+	for(int i = 0; i < ordem; i++){
+		infoVizinhos[i].timer = clock();
+	}
+	
+	while(1){ 
+
+		aux = clock();
+		for(int i = 0; i < ordem; i++){
+			tDecorrido = ((aux - infoVizinhos[i].timer) / (CLOCKS_PER_SEC / 1000));
+			
+			if(tDecorrido > 20000){
+				infoVizinhos[i].timer = clock();
+				tDecorrido = 0;
+				flagEnvia = 1;
+			}
+		}
+		
+	}
+	
+}
 
 
 void *distVector(int roteador){
-	
-	printf("Entrou aqui KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK %d\n\n", roteador);
-
 
 	while(1){
 		if(flagEnvia == 1){
-
-			printf("\n\nFLAGENVIIIIIIIIIAAAAAAAAAAAAA\n\n");
 
 			int sockt, s;
 			struct sockaddr_in si_dest, si_other;
@@ -124,25 +128,26 @@ void *distVector(int roteador){
 			si_other.sin_family = AF_INET;
 			si_other.sin_port = htons(rota[roteador].port);
 			
-			vetDistancia_t vetorDistancia;
+			msg vetorDistancia;
 			int i = 0;
 			int j;
 			while (i < ordem){
-				vetorDistancia.idInicio = roteador;
-				vetorDistancia.idDestino = infoVizinhos[i].id;
+				vetorDistancia.teste = 1;
+				vetorDistancia.origem = roteador;
+				vetorDistancia.destino = infoVizinhos[i].id;
 				vetorDistancia.custo = infoVizinhos[i].custo;
+				memset(vetorDistancia.mensagem,0, sizeof(vetorDistancia.mensagem));
 				j = 0;
 				while (j < N_ROTEADORES){
 					vetorDistancia.vetorCustos[j] = tabRoteamento[roteador][j];
 					j++;
 				}
-				printf("\nValor id = %d\nDestino = %d", vetorDistancia.idInicio, vetorDistancia.idDestino);
-				printf("Conseuiu criar socket\n");
+				
 				
 				memset((char *) &si_dest, 0, sizeof(si_dest));
 				si_dest.sin_family = AF_INET;
 				si_dest.sin_port = htons(rota[infoVizinhos[i].id].port + 10);
-				printf("%d - Porta que vai sair a mensagem\n", rota[infoVizinhos[i].id].port);
+	
 				
 				if (inet_aton(rota[infoVizinhos[i].id].ip , &si_dest.sin_addr) == 0){ //address to number
 					fprintf(stderr, "inet_aton() send_n() failed\n"),
@@ -150,10 +155,21 @@ void *distVector(int roteador){
 				}
 
 				if (sendto(sockt, &vetorDistancia, sizeof(vetorDistancia), 0 , (struct sockaddr *) &si_dest, slen)==-1){
-	      			die("\n sendto() send_n()\n");
-					  printf("Não consegiu enviar vetor distancia\n");
+	      			printf("Não consegiu enviar vetor distancia\n");
+					die("\n sendto() send_n()\n");
 	   			}
-				printf("\nConseuiu enviar\n");
+
+				for(int k = 0; k < ordem; k++){
+					infoVizinhos[k].timer = clock();
+				}
+
+				int j = 1;
+				printf("\nVetor distancia enviado = ");
+				while (j < N_ROTEADORES){
+					printf("%d ", vetorDistancia.vetorCustos[j]);
+					j++;
+				}
+				printf("\n");
 
 				i++;
 			}
@@ -166,38 +182,6 @@ void *distVector(int roteador){
 
 
 
-
-//verifica se ocorreu falha ao enviar mensagem e retorna pro roteador de origem mensagem de falha
-void teste(msg mensagem, msg ack){
-	printf("ENTROU NA TESTE\n");	
-	int s;
-	struct sockaddr_in si_other;
-	unsigned int slen1 = sizeof(si_other);
-
-	if((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1){
-		die("socket");
-	}
-
-	memset((char *) &si_other, 0, sizeof(si_other));
-	si_other.sin_family = AF_INET;
-	si_other.sin_port = htons(rota[mensagem.origem].port);
-
-	if (inet_aton(rota[mensagem.origem].ip , &si_other.sin_addr) == 0){ //address to number
-		fprintf(stderr, "inet_aton() send_n() failed\n"),
-		exit(1);
-	}
-
-	if (ack.type==FALHA){
-
-		if (sendto(s, &ack, sizeof(ack), 0 , (struct sockaddr *) &si_other, slen1)==-1){
-			die("\n sendto() send_n()\n");
-		}
-
-	}
-
-	close(s);
-
-}
 //envia mensagem
 void send_n(msg mensagem, int prox_roteador, int roteador_atual) {
 	
@@ -213,7 +197,6 @@ void send_n(msg mensagem, int prox_roteador, int roteador_atual) {
  	memset((char *) &si_dest, 0, sizeof(si_dest));
 	si_dest.sin_family = AF_INET;
 	si_dest.sin_port = htons(rota[prox_roteador].port + 10);
-	printf("%d - Porta que vai sair a mensagem", rota[prox_roteador].port);
 
 	unsigned int slen1 = sizeof(si_other);
 	memset((char *) &si_other, 0, sizeof(si_other));
@@ -249,10 +232,10 @@ void send_n(msg mensagem, int prox_roteador, int roteador_atual) {
 
 	   	setsockopt(sockt, SOL_SOCKET, SO_RCVTIMEO, (char *) &timeout, sizeof(timeout));
 
-	   	 if (recvfrom(sockt, &ack, sizeof(ack), 0, (struct sockaddr *) &si_dest, &slen) == -1)
+	   	if (recvfrom(sockt, &ack, sizeof(ack), 0, (struct sockaddr *) &si_dest, &slen) == -1)
 	  		printf("\n....Falha ao enviar. Enviando mensagem novamente...\n");
 
-	   	if(ack.type==NONE)ack_falha.type = FALHA;
+	   	if(ack.type==NONE) ack_falha.type = FALHA;
 
 	   	timeo = ack.type;
 
@@ -262,11 +245,10 @@ void send_n(msg mensagem, int prox_roteador, int roteador_atual) {
   //verifica se ocorreu timeout
 	if (timeo == NONE){
 	 	printf("\n....Timeout.\n");
-    //caso ocorra falha ele retorna mensagem de erro pro roteador que enviou a mensagem
-	 	if(ack_falha.type==FALHA){
-	 		teste(mensagem,ack_falha);
-	 	}
-
+    	//caso ocorra falha ele retorna mensagem de erro pro roteador que enviou a mensagem
+		if(ack_falha.type==FALHA){
+			printf("Ocorreu uma falha\n");
+		}
 	}
 	if(timeo == ACK){ //mensagem entregue com sucesso
 		  printf("\n....Mensagem %s foi entregue roteador %d \n", mensagem.mensagem,prox_roteador);
@@ -280,48 +262,31 @@ void send_n(msg mensagem, int prox_roteador, int roteador_atual) {
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // //ESCREVE MENSAGEM E MANDA PARA O DESTINO
 void *sender(int roteador) {
-	//printf("ENTROU NA SENDER\n");
-	//printf("%d - id inicio\n", roteador);
 
   while(1) {
     //Estrutura para ler mensagem e roteador de destino
-	printf("OLOKO\n");
     msg m;
+	m.teste = 0;
     m.destino = 0;
     m.origem = roteador;
     memset(m.mensagem,0, sizeof(m.mensagem));
 
     printf("\n>>ID do roteador de destino:\n");
-	printf("%d", m.destino);
 	scanf("%d", &m.destino);
-	printf("LEU\n");
     getchar();
-    printf("\n>>Entre com a mensagem:\n");
-    fgets(m.mensagem, 100, stdin);
-    m.mensagem[strlen(m.mensagem) - 1] = '\0';
+    if(m.destino > 0 && m.destino < N_ROTEADORES){
+		printf("\n>>Entre com a mensagem:\n");
+		fgets(m.mensagem, 100, stdin);
+		m.mensagem[strlen(m.mensagem) - 1] = '\0';
 
-    //procura o próximo caminho
-	printf("ATE AQUI FOI DE BOAS\nAgora tem q pegar o enlace\n");
-    prox_roteador = getEnlace(roteador, m.destino);
-	printf("\nRoteador %d encaminhando mensagem %s para %d \n",roteador,m.mensagem,prox_roteador);
-	send_n(m, prox_roteador, roteador);
+		//procura o próximo caminho
+		prox_roteador = getEnlace(roteador, m.destino);
+		printf("\nRoteador %d encaminhando mensagem %s para %d \n",roteador,m.mensagem,prox_roteador);
+		send_n(m, prox_roteador, roteador);
+	}
+	else printf("Esse roteador não existe\n");
 
   }
   pthread_exit(NULL);
@@ -331,34 +296,32 @@ void *sender(int roteador) {
 
 //fica aguardando receber mensagem (confirmação, erro, ou pacote)
 void *receiver(int roteador){
-	printf("ENTROU RECEIVER\n");
+
 	struct sockaddr_in si_me, si_other;
     int s, i, slen = sizeof(si_other) , recv_len;
     int myport = rota[roteador].port + 10;
 
-	printf("COntinua na receiver\n");
     //create a UDP socket
     if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
     {
         die("socket");
     }
-	//printf("COntinua na receiver 01\n");
+
     // zera a estrutura
     memset((char *) &si_me, 0, sizeof(si_me));
 
     si_me.sin_family = AF_INET;
     si_me.sin_port = htons(myport);
     si_me.sin_addr.s_addr = htonl(INADDR_ANY);
-	//printf("COntinua na receiver 02\n");
+
     //liga o socket e a porta
     if( bind(s , (struct sockaddr*)&si_me, sizeof(si_me) ) == -1)
     {
         die("bind");
     }
     //fica esperando chegar alguma mensagem
-	//printf("COntinua na receiver 03 antes de entrar no while\n");
+
     while(1){
-		//printf("COntinua na receiver 04\n");
  		//estrutura para receber a mensagem
  		msg mens;
 
@@ -367,60 +330,54 @@ void *receiver(int roteador){
         memset(mens.mensagem,0,sizeof(mens.mensagem));
         fflush(stdout);
 
-		vetDistancia_t vetorDistancia;
-		int i = 0;
-		int j;
-		vetorDistancia.idInicio = roteador;
-		vetorDistancia.idDestino = infoVizinhos[i].id;
-		vetorDistancia.custo = infoVizinhos[i].custo;
-		// j = 0;
-		// while (j < N_ROTEADORES){
-		// 	vetorDistancia.vetorCustos[j] = tabRoteamento[roteador][j];
-		// 	j++;
-		// }
-
-
-
-
-
-		//printf("COntinua na receiver 05\n");
-        if ((recv_len = recvfrom(s, &mens, sizeof(mens), 0, (struct sockaddr *) &si_other, &slen)) == -1)
-        {
-
+        if ((recv_len = recvfrom(s, &mens, sizeof(mens), 0, (struct sockaddr *) &si_other, &slen)) == -1){
             die("\nrecvfrom() receiver()\n");
         }
-		printf("\n\n\nRECEBI AS POHA AQUI\n\n");
-		//printf("COntinua na receiver 06\n");
-        //verifica se o roteador estanciado é o destino final da mensagem
 		
-        if(mens.destino == roteador){
-        	printf("\n ## Pacote recebido de %d | mensagem > %s < \n",mens.origem,mens.mensagem);
-          //envia confirmação de recebimento
-        	msg ack;
-        	memset(ack.mensagem, '\0', sizeof(ack.mensagem));
-        	ack.type = ACK;
+		if(mens.teste == 1){     //se for vetor distancia, recalcula tab Roteamento
 
-        	if (sendto(s, &ack, sizeof(ack), 0, (struct sockaddr*) &si_other, slen) == -1){
-        			die("\nsendto() receiver()\n");
-        	}
-        }
-        else if (mens.type==FALHA){ // verifica se não ocorreu erro em entregar o pacote
-        	printf("\n..... pacote perdido \n");
+			int j = 1;
+			printf("\nVetor distancia recebido = ");
+			while (j < N_ROTEADORES){
+				printf("%d ", mens.vetorCustos[j]);
+				j++;
+			}
+			printf("\n");
 
-        }else{ //confirma recebimento e envia para o próximo até chegar ao destino
-              	msg ack;
-              	memset(ack.mensagem, '\0', sizeof(ack.mensagem));
-              	ack.type = ACK;
+			atualizaTabRoteamento(mens);
+			printaTabelaRoteamento();
+			
+		}
+        else{
+			//verifica se o roteador estanciado é o destino final da mensagem
+			if(mens.destino == roteador){
+				printf("\n ## Pacote recebido de %d | mensagem > %s < \n",mens.origem,mens.mensagem);
+			//envia confirmação de recebimento
+				msg ack;
+				memset(ack.mensagem, '\0', sizeof(ack.mensagem));
+				ack.type = ACK;
 
-          		if (sendto(s, &ack, sizeof(ack), 0, (struct sockaddr*) &si_other, slen) == -1){
-              		die("\nsendto() receiver()\n");
-          		}
+				if (sendto(s, &ack, sizeof(ack), 0, (struct sockaddr*) &si_other, slen) == -1){
+						die("\nsendto() receiver()\n");
+				}
+			}
+			else if (mens.type==FALHA){ // verifica se não ocorreu erro em entregar o pacote
+				printf("\n..... pacote perdido \n");
 
-        		prox_roteador = getEnlace(roteador, mens.destino);
-        		printf("\nRoteador %d encaminhando mensagem %s para %d \n",roteador,mens.mensagem,prox_roteador);
-        		send_n(mens,prox_roteador,roteador);
-        }
-		printf("COntinua na receiver 07\n");
+			}else{ //confirma recebimento e envia para o próximo até chegar ao destino
+					msg ack;
+					memset(ack.mensagem, '\0', sizeof(ack.mensagem));
+					ack.type = ACK;
+
+					if (sendto(s, &ack, sizeof(ack), 0, (struct sockaddr*) &si_other, slen) == -1){
+						die("\nsendto() receiver()\n");
+					}
+
+					prox_roteador = getEnlace(roteador, mens.destino);
+					printf("\nRoteador %d encaminhando mensagem %s para %d \n",roteador,mens.mensagem,prox_roteador);
+					send_n(mens,prox_roteador,roteador);
+			}
+		}
 
      }
 

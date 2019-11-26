@@ -10,10 +10,12 @@
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
+#include <time.h>
 
 //threads
 #include <pthread.h>
@@ -23,24 +25,11 @@
 #include <sys/time.h>
 
 #define ATTEMPTS_S 3
-#define N_ROTEADORES 7
+#define N_ROTEADORES 5
 #define INF 999
 #define TAM_IP 10
 #define TAM_FILA 1123456
 #define TAM_MENSAGEM 100
-
-
-pthread_t threadEnviar;
-pthread_t threadReceber;
-pthread_t threadDesempacotar;
-pthread_t threadInformacao;
-pthread_t threadVivacidade;
-pthread_mutex_t logMutex;
-pthread_mutex_t mensagemMutex;
-pthread_mutex_t novidadeMutex;
-
-
-
 
 
 enum msg_type{
@@ -50,16 +39,20 @@ enum msg_type{
 struct sockaddr_in socketRoteador;
 
 typedef struct{
-	  int destino;
-	  int origem;
-	  char mensagem[100];
-	  enum msg_type type;
+    int origem;
+	int destino; 
+	char mensagem[100];
+
+    int teste;
+    int custo;
+    int vetorCustos[N_ROTEADORES];
+	enum msg_type type;
 }msg;
 
 struct roteador{
-	  int id;
-	  int port;
-	  char ip[16];
+	int id;
+	int port;
+	char ip[16];
 };
 
 typedef struct{
@@ -77,20 +70,11 @@ typedef struct{
 
 typedef struct{
     int id;
-    int custoOriginal;
-    int saltoOriginal;
     int custo;
     int porta;
-    int novidade;
+    clock_t timer;
     char ip[TAM_IP];
 } roteadorVizinho_t;
-
-typedef struct{
-    int idInicio;
-    int idDestino;
-    int custo;
-    int vetorCustos[N_ROTEADORES];
-} vetDistancia_t;
 
 
 struct roteador rota[100];
@@ -99,6 +83,7 @@ int tabRoteamento[N_ROTEADORES][N_ROTEADORES];
 int listaVizinhos[N_ROTEADORES];
 roteadorVizinho_t infoVizinhos[N_ROTEADORES];
 int ordem;
+int ROTATUAL;
 int flagEnvia;
 
 
@@ -110,6 +95,7 @@ void send_n(msg mensagem, int prox_roteador, int roteador_atual );
 void *sender(int roteador);
 void *receiver(int roteador);
 void *distVector(int roteador);
+void *timer(int roteador);
 void printaTabelaRoteamento();
 int getEnlace(int idIni, int idFin);
 #endif
